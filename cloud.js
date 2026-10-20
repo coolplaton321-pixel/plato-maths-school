@@ -64,7 +64,7 @@
   function defaultRatings(student){
     const ratings = {};
     topicsForStudent(student).forEach(([id]) => {
-      ratings[id] = student.id === 'jay' || curriculumFor(student) === 'leaving' ? 'grey' : KNOWLEDGE_LEVELS[Math.floor(Math.random()*4)][0];
+      ratings[id] = student.id === 'jay' || student.initialRatings === 'unassessed' || curriculumFor(student) === 'leaving' ? 'grey' : KNOWLEDGE_LEVELS[Math.floor(Math.random()*4)][0];
     });
     return ratings;
   }

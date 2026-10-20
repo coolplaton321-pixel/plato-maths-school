@@ -5,7 +5,8 @@ import test from 'node:test';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const inline=html.match(/<script>([\s\S]*?)<\/script>/)[1];
-const bankCode=inline.slice(inline.indexOf('const QUESTION_BANKS'),inline.indexOf('/* Default explanations'));
+const angles=readFileSync(new URL('../junior-angles.js',import.meta.url),'utf8');
+const bankCode=angles+'\n'+inline.slice(inline.indexOf('const QUESTION_BANKS'),inline.indexOf('/* Default explanations'));
 
 test('fifteen derivative questions retain the original ten and add three medium and two hard combined-rule problems',()=>{
   const context=vm.createContext({});
@@ -98,6 +99,7 @@ test('Leaving Cert drill controls select, reset, return and remain separate from
   run(inline.slice(inline.indexOf('function examBankFor'),inline.indexOf('/* ---------------- working board')));
   run('selectBank("leaving")');
   assert.equal(elements.get('differentiationButton').hidden,false);
+  assert.equal(elements.get('anglesButton').hidden,true);
   assert.equal(elements.get('appliedButton').hidden,true);
   assert.equal(elements.get('testCount').textContent,'15 questions');
   elements.get('differentiationButton').click();
@@ -116,10 +118,62 @@ test('Leaving Cert drill controls select, reset, return and remain separate from
   modes[0].onclick();
   assert.equal(elements.get('differentiationButton').hidden,true);
   assert.equal(elements.get('appliedButton').hidden,false);
+  assert.equal(elements.get('anglesButton').hidden,false);
+  assert.equal(elements.get('anglesCount').textContent,'20 questions');
+  elements.get('anglesButton').click();
+  assert.equal(run('activeBank'),'angles');
+  assert.equal(run('QUESTIONS.length'),20);
+  assert.equal(elements.get('anglesButton').attributes['aria-pressed'],'true');
+  assert.equal(elements.get('appliedButton').attributes['aria-pressed'],'false');
+  assert.equal(elements.get('testCount').textContent,'10 questions');
+  assert.ok(modes[0].classes.has('on'));
+  elements.get('testButton').click();
+  assert.equal(run('activeBank'),'junior');
   elements.get('appliedButton').click();
   assert.equal(run('QUESTIONS.length'),30);
   elements.get('testButton').click();
   assert.equal(run('activeBank'),'junior');
   assert.equal(run('QUESTIONS.length'),10);
   assert.equal(elements.get('testCount').textContent,'10 questions');
+});
+
+test('both angle sets have complete cards and preserve every original answer',()=>{
+  const context=vm.createContext({});
+  vm.runInContext(bankCode,context);
+  const questions=JSON.parse(vm.runInContext('JSON.stringify(QUESTION_BANKS.angles)',context));
+  assert.equal(questions.length,20);
+  assert.equal(new Set(questions.map(q=>q.id)).size,20);
+  assert.deepEqual(questions.map(q=>q.diagram),Array.from({length:20},(_,i)=>i+1));
+  assert.equal(questions.filter(q=>q.practiceSet==='foundation').length,10);
+  assert.equal(questions.filter(q=>q.practiceSet==='harder').length,10);
+  assert.ok(questions.every(q=>q.tense==='geo' && q.prompt && q.answer && q.theory && q.example && q.terms.length===2 && q.description));
+  assert.deepEqual(questions.map(q=>q.answerValues),[
+    {x:112},{x:165},{x:47},{x:58},{x:63},{x:74},{x:64},{x:70},{x:71},{x:121},
+    {x:25},{x:30},{x:20,y:95},{x:18,y:130},{x:26},{x:30},{x:24,y:53},{x:35},{x:104},{x:82}
+  ]);
+  for(const q of questions){
+    const svg=vm.runInContext(`renderJuniorAngleDiagram(${q.diagram})`,context);
+    assert.match(svg,/^<svg/);assert.match(svg,/viewBox="0 0 320 275"/);assert.match(svg,/role="img"/);assert.match(svg,/aria-label=/);
+    assert.match(svg,/class="geometry"/);assert.match(svg,/<text\b[^>]*>[^<]*x[^<]*<\/text>/);
+    assert.ok(!svg.includes('NaN') && !svg.includes('undefined') && !svg.includes('<script'));
+    for(const field of ['prompt','answer']) assert.equal((q[field].match(/\$/g)||[]).length%2,0);
+    for(const [variable,value] of Object.entries(q.answerValues)){
+      assert.ok(q.answer.includes(`${variable} =`),`${q.id}: identifies ${variable}`);
+      assert.ok(q.answer.includes(`${value}°`) || q.answer.includes(`${variable} = ${value}`),`${q.id}: final value ${value}`);
+    }
+  }
+  assert.equal(vm.runInContext('renderJuniorAngleDiagram(99)',context),'');
+});
+
+test('angle equations independently reproduce all harder answers',()=>{
+  assert.equal((180-10+5-50)/5,25);
+  assert.equal((360-20-10-150)/6,30);
+  assert.equal((25+15)/(5-3),20);assert.equal(180-(5*20-15),95);
+  assert.equal((14+40)/(5-2),18);assert.equal(180-(2*18+14),130);
+  assert.equal((180-8-16)/6,26);
+  assert.equal(180/6,30);
+  assert.equal((180-2*5-2)/7,24);assert.equal(2*24+5,53);
+  assert.equal((50+70-15)/3,35);
+  assert.equal(180-2*38,104);
+  assert.equal(180-40-(180-122),82);
 });

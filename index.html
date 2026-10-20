@@ -123,6 +123,13 @@
   }
   .prompt em{font-style:italic; color:var(--pr)}
   .prompt b{font-weight:800; color:var(--pr)}
+  .question-diagram{margin:16px 0 8px;color:var(--ink)}
+  .question-diagram svg{display:block;width:100%;height:auto;max-height:250px;overflow:visible}
+  .question-diagram .geometry{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .question-diagram .angle-arc{fill:none;stroke:#8295A3;stroke-width:1}
+  .question-diagram .angle-label{fill:currentColor;font:15px var(--sans);text-anchor:middle;dominant-baseline:middle}
+  .question-diagram .unknown{font-style:italic;font-weight:700}
+  .question-diagram figcaption{font-size:10px;line-height:1.5;color:var(--ink-soft);text-align:center;margin-top:5px}
   .prompt .blank{
     display:inline-block; min-width:82px; border-bottom:3px solid #C3CEDC;
     margin:0 3px; vertical-align:-2px;
@@ -488,6 +495,7 @@
 <div class="mode-actions">
   <button type="button" class="test-launch active" id="testButton" aria-pressed="true">Test <span id="testCount">10 questions</span></button>
   <button type="button" class="test-launch" id="appliedButton" aria-pressed="false">Applied arithmetic <span id="appliedCount">30 questions</span></button>
+  <button type="button" class="test-launch" id="anglesButton" aria-pressed="false">Lines and angles <span id="anglesCount">20 questions</span></button>
   <button type="button" class="test-launch" id="differentiationButton" aria-pressed="false" hidden>Differentiation <span id="differentiationCount">15 questions</span></button>
 </div>
 
@@ -580,6 +588,7 @@
 <footer>Plato Maths School</footer>
 
 <script src="leaving-curriculum.js"></script>
+<script src="junior-angles.js?v=lines-angles-v1"></script>
 <script>
 /* ------------------------------------------------------------------
    QUESTION BANK
@@ -589,6 +598,7 @@
    task is the instruction shown at the top of the card.
 -------------------------------------------------------------------*/
 const QUESTION_BANKS = {
+  angles: JUNIOR_ANGLE_QUESTIONS,
   junior: [
     { task:"Junior Cycle · Surds", tense:"num",
       prompt:"Simplify $sqrt(72)$ fully.",
@@ -1266,6 +1276,7 @@ QUESTION_BANKS.junior = QUESTION_BANKS.junior
 const BANK_LABELS = {
   junior:"Junior Cycle",
   applied:"Applied arithmetic",
+  angles:"Lines and angles",
   leaving:"Leaving Cert",
   differentiation:"Differentiation"
 };
@@ -1344,6 +1355,7 @@ function render(){
     <div class="task">${q.task}<span class="qno">${String(idx+1).padStart(2,'0')} / ${String(QUESTIONS.length).padStart(2,'0')}</span></div>
     <div class="scroll"><div class="inner">
       <div class="sentence"><p class="prompt">${styleSentence(q.prompt)}</p></div>
+      ${q.diagram ? `<figure class="question-diagram">${renderJuniorAngleDiagram(q.diagram)}<figcaption>Not to scale. Matching arrows mark parallel lines; matching ticks mark equal sides.</figcaption></figure>` : ''}
       <div id="panels"></div>
     </div></div>
     <div class="tools">
@@ -1512,7 +1524,7 @@ function showResult(){
 
 /* ---------------- mode switching ---------------- */
 function examBankFor(bank){
-  return bank === 'applied' ? 'junior' : bank === 'differentiation' ? 'leaving' : bank;
+  return ['applied','angles'].includes(bank) ? 'junior' : bank === 'differentiation' ? 'leaving' : bank;
 }
 function selectBank(bank){
   activeBank = bank;
@@ -1537,6 +1549,8 @@ const testButton = document.getElementById('testButton');
 const testCount = document.getElementById('testCount');
 const appliedButton = document.getElementById('appliedButton');
 const appliedCount = document.getElementById('appliedCount');
+const anglesButton = document.getElementById('anglesButton');
+const anglesCount = document.getElementById('anglesCount');
 const differentiationButton = document.getElementById('differentiationButton');
 const differentiationCount = document.getElementById('differentiationCount');
 
@@ -1545,20 +1559,25 @@ function syncTestButton(){
   const juniorAreaActive = examBank === 'junior';
   testButton.hidden = false;
   appliedButton.hidden = !juniorAreaActive;
+  anglesButton.hidden = !juniorAreaActive;
   differentiationButton.hidden = juniorAreaActive;
   testCount.textContent = `${QUESTION_BANKS[examBank].length} questions`;
   appliedCount.textContent = `${QUESTION_BANKS.applied.length} questions`;
+  anglesCount.textContent = `${QUESTION_BANKS.angles.length} questions`;
   differentiationCount.textContent = `${QUESTION_BANKS.differentiation.length} questions`;
   testButton.classList.toggle('active', activeBank === examBank);
   appliedButton.classList.toggle('active', activeBank === 'applied');
+  anglesButton.classList.toggle('active', activeBank === 'angles');
   differentiationButton.classList.toggle('active', activeBank === 'differentiation');
   testButton.setAttribute('aria-pressed', String(activeBank === examBank));
   appliedButton.setAttribute('aria-pressed', String(activeBank === 'applied'));
+  anglesButton.setAttribute('aria-pressed', String(activeBank === 'angles'));
   differentiationButton.setAttribute('aria-pressed', String(activeBank === 'differentiation'));
 }
 
 testButton.addEventListener('click', () => selectBank(examBankFor(activeBank)));
 appliedButton.addEventListener('click', () => selectBank('applied'));
+anglesButton.addEventListener('click', () => selectBank('angles'));
 differentiationButton.addEventListener('click', () => selectBank('differentiation'));
 
 /* ---------------- working board ---------------- */
@@ -1943,7 +1962,8 @@ const STUDENTS = [
   {id:'aarav',name:'Aarav',exam:'Junior Cycle · Higher Level',year:'Third year'},
   {id:'priya',name:'Priya',exam:'Leaving Cert · Higher Level',year:'Fifth year'},
   {id:'rohan',name:'Rohan',exam:'Junior Cycle · Ordinary Level',year:'Third year'},
-  {id:'david',name:'David',exam:'Leaving Cert · Higher Level',year:'Leaving Certificate'}
+  {id:'david',name:'David',exam:'Leaving Cert · Higher Level',year:'Leaving Certificate'},
+  {id:'elizabeth',name:'Elizabeth',exam:'Junior Cycle',year:'Junior Cycle student',initialRatings:'unassessed'}
 ];
 const STUDENT_ORDER_KEY = 'irish-maths-tutor:student-order:v1';
 const VLADIMIR_PRESET_VERSION = '90-green-rest-yellow:v2';
@@ -1999,7 +2019,7 @@ function loadStudentRatings(student){
       if (KNOWLEDGE_LEVELS.some(([rating]) => rating === saved[id])) ratings[id] = saved[id];
     });
     if (student.id === 'vladimir') ratings.__presetVersion = VLADIMIR_PRESET_VERSION;
-  } else if (student.id !== 'jay' && curriculumFor(student) === 'junior'){
+  } else if (student.id !== 'jay' && student.initialRatings !== 'unassessed' && curriculumFor(student) === 'junior'){
     // Sample profiles get random demo ratings once, then retain user changes.
     const sampleLevels = shuffled(KNOWLEDGE_LEVELS.map(([rating]) => rating));
     JUNIOR_HIGHER_STRANDS.flatMap(strand => strand.topics).forEach(([id],index) => {
@@ -2227,6 +2247,6 @@ resizeBoard();
 render();
 </script>
 <script src="vendor/supabase.js" defer></script>
-<script src="cloud.js?v=david-cloud-v1" defer></script>
+<script src="cloud.js?v=elizabeth-cloud-v1" defer></script>
 </body>
 </html>

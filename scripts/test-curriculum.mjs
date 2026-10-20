@@ -6,6 +6,7 @@ import test from 'node:test';
 const html = readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const curriculum = readFileSync(new URL('../leaving-curriculum.js',import.meta.url),'utf8');
 const cloud = readFileSync(new URL('../cloud.js',import.meta.url),'utf8');
+const angles = readFileSync(new URL('../junior-angles.js',import.meta.url),'utf8');
 const inline = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const studentCode = inline.slice(inline.indexOf('const JUNIOR_HIGHER_STRANDS'),inline.indexOf('const menuToggle'));
 
@@ -19,8 +20,9 @@ function fixture(){
 }
 
 test('all application scripts parse',()=>{
-  [curriculum,inline,cloud].forEach(code=>new vm.Script(code));
+  [curriculum,inline,cloud,angles].forEach(code=>new vm.Script(code));
   assert.ok(html.indexOf('src="leaving-curriculum.js"') < html.indexOf('<script>'));
+  assert.ok(html.indexOf('src="junior-angles.js') < html.indexOf('<script>'));
 });
 
 test('five complete LC strands and stable, disjoint topic IDs',()=>{
@@ -68,12 +70,26 @@ test('David precedes Jay on fresh devices, existing saved orders and reloads',()
   values.set('irish-maths-tutor:student-order:v1',JSON.stringify(['aoife','david','liam','david','jay','unknown','niamh']));
   const ordered=run('studentDirectoryOrder().map(s=>s.id).join(",")');
   assert.ok(ordered.startsWith('david,jay,aoife,liam,niamh,'));
-  assert.equal(run('new Set(studentDirectoryOrder().map(s=>s.id)).size'),15);
-  assert.equal(run('studentDirectoryOrder().length'),15);
+  assert.equal(run('new Set(studentDirectoryOrder().map(s=>s.id)).size'),16);
+  assert.equal(run('studentDirectoryOrder().length'),16);
   assert.equal(run('studentDirectoryOrder().map(s=>s.id).join(",")'),ordered);
   const reload=fixture();
   reload.values.set('irish-maths-tutor:student-order:v1',values.get('irish-maths-tutor:student-order:v1'));
   assert.equal(reload.run('studentDirectoryOrder().map(s=>s.id).join(",")'),ordered);
+});
+
+test('Elizabeth is an unassessed Junior Cycle profile and preserves other device colours',()=>{
+  const {run,values}=fixture();
+  values.set('irish-maths-tutor:jay:jc-higher:v1','{"angles":"green"}');
+  values.set('irish-maths-tutor:student-order:v1','["aoife","jay","elizabeth","elizabeth"]');
+  assert.equal(run('STUDENTS.filter(s=>s.id==="elizabeth").length'),1);
+  assert.equal(run('STUDENTS.find(s=>s.id==="elizabeth").exam'),'Junior Cycle');
+  assert.equal(run('curriculumFor(STUDENTS.find(s=>s.id==="elizabeth"))'),'junior');
+  assert.equal(run('topicsForStudent(STUDENTS.find(s=>s.id==="elizabeth")).length'),48);
+  assert.equal(run('Object.keys(loadStudentRatings(STUDENTS.find(s=>s.id==="elizabeth"))).length'),0);
+  assert.equal(run('studentDirectoryOrder().filter(s=>s.id==="elizabeth").length'),1);
+  assert.equal(run('studentDirectoryOrder().slice(0,2).map(s=>s.id).join(",")'),'david,jay');
+  assert.equal(values.get('irish-maths-tutor:jay:jc-higher:v1'),'{"angles":"green"}');
 });
 
 test('David keeps guest ratings separate from signed-in cloud state',()=>{
@@ -194,4 +210,27 @@ test('David edits and grey resets survive offline queue, reload and a second dev
   assert.equal(second.rows.find(r=>r.student_id==='david' && r.topic_id==='lc-integration').rating,'grey');
   assert.equal(second.elements.get('cloudStatus').textContent,'Colours saved to your account.');
   assert.ok([...reload.writes,...second.writes].every(row=>row.owner_id==='teacher-test' && row.student_id==='david'));
+});
+
+test('Elizabeth starts grey in each account; her edits sync without changing Jay',async()=>{
+  const remote={owner_id:'teacher-test',student_id:'jay',topic_id:'angles',rating:'green'};
+  const first=await cloudFixture({rows:[remote]});
+  const initial=first.rows.filter(row=>row.student_id==='elizabeth');
+  assert.equal(initial.length,48);assert.ok(initial.every(row=>row.rating==='grey'));
+  first.context.navigator.onLine=false;
+  first.run('ratingsByStudent.get("elizabeth").angles="yellow"');
+  first.context.window.platoCloud.save('elizabeth','angles','yellow');
+  const pendingKey='plato-maths-school:teacher-test:pending:v1';
+  const stored=Object.fromEntries([...first.values].map(([key,value])=>[key,JSON.parse(value)]));
+  const reload=await cloudFixture({rows:first.rows,stored,restored:true});
+  for(let i=0;i<20 && JSON.parse(reload.values.get(pendingKey))['elizabeth/angles'];i++) await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(reload.rows.find(row=>row.student_id==='elizabeth' && row.topic_id==='angles').rating,'yellow');
+  const second=await cloudFixture({rows:first.rows,restored:true});
+  assert.equal(second.run('ratingsByStudent.get("elizabeth").angles'),'yellow');
+  second.context.window.platoCloud.save('elizabeth','angles','grey');
+  for(let i=0;i<20 && JSON.parse(second.values.get(pendingKey))['elizabeth/angles'];i++) await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(remote.rating,'green');
+  assert.equal(second.rows.find(row=>row.student_id==='elizabeth' && row.topic_id==='angles').rating,'grey');
+  const other=await cloudFixture({rows:first.rows,owner:'another-teacher',stored:{'plato-maths-school:legacy-import-owner:v1':'teacher-test'}});
+  assert.ok(other.rows.filter(row=>row.owner_id==='another-teacher' && row.student_id==='elizabeth').every(row=>row.rating==='grey'));
 });
