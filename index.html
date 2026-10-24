@@ -496,7 +496,7 @@
   <button type="button" class="test-launch active" id="testButton" aria-pressed="true">Test <span id="testCount">10 questions</span></button>
   <button type="button" class="test-launch" id="appliedButton" aria-pressed="false">Applied arithmetic <span id="appliedCount">30 questions</span></button>
   <button type="button" class="test-launch" id="anglesButton" aria-pressed="false">Lines and angles <span id="anglesCount">20 questions</span></button>
-  <button type="button" class="test-launch" id="differentiationButton" aria-pressed="false" hidden>Differentiation <span id="differentiationCount">15 questions</span></button>
+  <button type="button" class="test-launch" id="differentiationButton" aria-pressed="false" hidden>Differentiation <span id="differentiationCount">35 questions</span></button>
 </div>
 
 <div class="top" id="hud">
@@ -589,6 +589,7 @@
 
 <script src="leaving-curriculum.js"></script>
 <script src="junior-angles.js?v=lines-angles-v1"></script>
+<script src="leaving-differentiation-worksheet.js?v=landscape-20-v1"></script>
 <script>
 /* ------------------------------------------------------------------
    QUESTION BANK
@@ -1124,7 +1125,8 @@ const QUESTION_BANKS = {
       theory:"The chain rule for [g(x)]<sup>-3</sup> gives -3[g(x)]<sup>-4</sup>g'(x). Apply it inside the product rule. To factor negative powers, use the more negative exponent: taking out (3x + 2)<sup>-4</sup> leaves one factor of (3x + 2) in the first term. Finally rewrite the negative power as a denominator.",
       example:"For y = (x + 1)<sup>2</sup>(2x - 1)<sup>-2</sup>, where x &ne; 1/2, dy/dx = 2(x + 1)(2x - 1)<sup>-2</sup> - 4(x + 1)<sup>2</sup>(2x - 1)<sup>-3</sup> = -6(x + 1)/(2x - 1)<sup>3</sup>.",
       terms:[{w:"negative power", d:"a reciprocal power; reducing -3 by one gives -4", ua:"keep the minus sign"},
-             {w:"domain restriction", d:"a value excluded because it makes a denominator zero", ua:"x cannot equal -2/3"}] }
+             {w:"domain restriction", d:"a value excluded because it makes a denominator zero", ua:"x cannot equal -2/3"}] },
+    ...LC_DIFFERENTIATION_WORKSHEET
   ],
 
   leaving: [

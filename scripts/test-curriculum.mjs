@@ -7,6 +7,7 @@ const html = readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const curriculum = readFileSync(new URL('../leaving-curriculum.js',import.meta.url),'utf8');
 const cloud = readFileSync(new URL('../cloud.js',import.meta.url),'utf8');
 const angles = readFileSync(new URL('../junior-angles.js',import.meta.url),'utf8');
+const differentiationWorksheet = readFileSync(new URL('../leaving-differentiation-worksheet.js',import.meta.url),'utf8');
 const inline = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const studentCode = inline.slice(inline.indexOf('const JUNIOR_HIGHER_STRANDS'),inline.indexOf('const menuToggle'));
 
@@ -20,9 +21,10 @@ function fixture(){
 }
 
 test('all application scripts parse',()=>{
-  [curriculum,inline,cloud,angles].forEach(code=>new vm.Script(code));
+  [curriculum,inline,cloud,angles,differentiationWorksheet].forEach(code=>new vm.Script(code));
   assert.ok(html.indexOf('src="leaving-curriculum.js"') < html.indexOf('<script>'));
   assert.ok(html.indexOf('src="junior-angles.js') < html.indexOf('<script>'));
+  assert.ok(html.indexOf('src="leaving-differentiation-worksheet.js') < html.indexOf('<script>'));
 });
 
 test('five complete LC strands and stable, disjoint topic IDs',()=>{

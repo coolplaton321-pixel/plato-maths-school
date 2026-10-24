@@ -1,17 +1,22 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import vm from 'node:vm';
 import test from 'node:test';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const inline=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const angles=readFileSync(new URL('../junior-angles.js',import.meta.url),'utf8');
-const bankCode=angles+'\n'+inline.slice(inline.indexOf('const QUESTION_BANKS'),inline.indexOf('/* Default explanations'));
+const worksheet=readFileSync(new URL('../leaving-differentiation-worksheet.js',import.meta.url),'utf8');
+const bankCode=angles+'\n'+worksheet+'\n'+inline.slice(inline.indexOf('const QUESTION_BANKS'),inline.indexOf('/* Default explanations'));
 
-test('fifteen derivative questions retain the original ten and add three medium and two hard combined-rule problems',()=>{
+test('all fifteen existing differentiation questions are preserved byte-for-byte in the expanded 35-question bank',()=>{
   const context=vm.createContext({});
   vm.runInContext(bankCode,context);
-  const questions=JSON.parse(vm.runInContext('JSON.stringify(QUESTION_BANKS.differentiation)',context));
+  const bank=JSON.parse(vm.runInContext('JSON.stringify(QUESTION_BANKS.differentiation)',context));
+  assert.equal(bank.length,35);
+  const questions=bank.slice(0,15);
+  assert.equal(createHash('sha256').update(JSON.stringify(questions)).digest('hex'),'8aa025fc0288af76a90427b6c112989d0254cb4213c9f4421faad90fe131a0cb');
   assert.equal(questions.length,15);
   assert.deepEqual(questions.map(q=>q.difficulty),['easy','easy','easy','medium','medium','medium','medium','medium','medium','medium','medium','medium','medium','hard','hard']);
   assert.ok(questions.every(q=>q.tense==='calc' && q.prompt && q.answer && q.theory && q.example && q.terms.length));
@@ -63,6 +68,91 @@ test('fifteen derivative questions retain the original ten and add three medium 
   assert.equal(cases[5][3](2),5);
 });
 
+test('all twenty PDF questions retain their equations, answers, worksheet order and rule coverage',()=>{
+  const context=vm.createContext({});
+  vm.runInContext(bankCode,context);
+  const questions=JSON.parse(vm.runInContext('JSON.stringify(QUESTION_BANKS.differentiation.slice(15))',context));
+  assert.equal(questions.length,20);
+  assert.deepEqual(questions.map(q=>q.worksheetNumber),Array.from({length:20},(_,i)=>i+1));
+  assert.equal(new Set(questions.map(q=>q.id)).size,20);
+  assert.equal(new Set(questions.map(q=>q.prompt)).size,20);
+  assert.deepEqual(questions.map(q=>q.difficulty),[...Array(4).fill('easy'),...Array(12).fill('medium'),...Array(4).fill('hard')]);
+  assert.deepEqual([...new Set(questions.flatMap(q=>q.rules))].sort(),['chain','difference','limit','power','product','quotient','reciprocal','root','sum']);
+  assert.ok(questions.every(q=>q.tense==='calc' && q.source==='landscape-20' && q.theory && q.example && q.terms.length===q.rules.length));
+  assert.ok(questions.every(q=>q.task.includes(`PDF ${String(q.worksheetNumber).padStart(2,'0')}`)));
+  const limits=questions.filter(q=>q.rules.includes('limit'));
+  assert.deepEqual(limits.map(q=>q.worksheetNumber),[4,5,6]);
+  assert.ok(limits.every(q=>q.prompt.includes('lim<sub>h &rarr; 0</sub>') && q.answer.includes('For $h &ne; 0$')));
+  assert.ok(limits[1].answer.includes('2x + h + 3') && limits[2].answer.includes('4x + 2h - 5'));
+  const cases=[
+    ['4x<sup>3</sup> - 5x<sup>2</sup> + 6x - 9','12x<sup>2</sup> - 10x + 6',x=>4*x**3-5*x*x+6*x-9,x=>12*x*x-10*x+6],
+    ['2x<sup>4</sup> - 9/x','8x<sup>3</sup> + 9/x<sup>2</sup>',x=>2*x**4-9/x,x=>8*x**3+9/x**2],
+    ['8&radic;x - 3x + 2','4/&radic;x - 3',x=>8*Math.sqrt(x)-3*x+2,x=>4/Math.sqrt(x)-3],
+    ['3x - 2',"f'(x) = 3",x=>3*x-2,x=>3],
+    ['x<sup>2</sup> + 3x',"f'(x) = 2x + 3",x=>x*x+3*x,x=>2*x+3],
+    ['2x<sup>2</sup> - 5x + 4',"f'(x) = 4x - 5",x=>2*x*x-5*x+4,x=>4*x-5],
+    ['(x<sup>2</sup> + 2)(3x - 4)','9x<sup>2</sup> - 8x + 6',x=>(x*x+2)*(3*x-4),x=>9*x*x-8*x+6],
+    ['(3x - 2)<sup>4</sup>','12(3x - 2)<sup>3</sup>',x=>(3*x-2)**4,x=>12*(3*x-2)**3],
+    ['(2x + 1)/(x - 3)','-7/(x - 3)<sup>2</sup>',x=>(2*x+1)/(x-3),x=>-7/(x-3)**2],
+    ['(x<sup>2</sup> - 4)(x<sup>3</sup> + 2x)','5x<sup>4</sup> - 6x<sup>2</sup> - 8',x=>(x*x-4)*(x**3+2*x),x=>5*x**4-6*x*x-8],
+    ['&radic;(2x<sup>2</sup> + 5)','2x/&radic;(2x<sup>2</sup> + 5)',x=>Math.sqrt(2*x*x+5),x=>2*x/Math.sqrt(2*x*x+5)],
+    ['(x<sup>2</sup> + 3)/(2x - 1)','(2x<sup>2</sup> - 2x - 6)/(2x - 1)<sup>2</sup>',x=>(x*x+3)/(2*x-1),x=>(2*x*x-2*x-6)/(2*x-1)**2],
+    ['(x<sup>2</sup> + 1)<sup>3</sup> - 2(3x - 4)<sup>2</sup>','6x(x<sup>2</sup> + 1)<sup>2</sup> - 12(3x - 4)',x=>(x*x+1)**3-2*(3*x-4)**2,x=>6*x*(x*x+1)**2-12*(3*x-4)],
+    ['(2x + 1)<sup>3</sup>(x<sup>2</sup> - 4)','2(2x + 1)<sup>2</sup>(5x<sup>2</sup> + x - 12)',x=>(2*x+1)**3*(x*x-4),x=>2*(2*x+1)**2*(5*x*x+x-12)],
+    ['(x<sup>2</sup> - 3x + 5)<sup>-2</sup>','-2(2x - 3)/(x<sup>2</sup> - 3x + 5)<sup>3</sup>',x=>(x*x-3*x+5)**-2,x=>-2*(2*x-3)/(x*x-3*x+5)**3],
+    ['(x<sup>2</sup> + 1)<sup>2</sup>/(x + 2)','(x<sup>2</sup> + 1)(3x<sup>2</sup> + 8x - 1)/(x + 2)<sup>2</sup>',x=>(x*x+1)**2/(x+2),x=>(x*x+1)*(3*x*x+8*x-1)/(x+2)**2],
+    ['(2x - 1)<sup>3</sup>(x<sup>2</sup> + 4)<sup>2</sup>','2(2x - 1)<sup>2</sup>(x<sup>2</sup> + 4)(7x<sup>2</sup> - 2x + 12)',x=>(2*x-1)**3*(x*x+4)**2,x=>2*(2*x-1)**2*(x*x+4)*(7*x*x-2*x+12)],
+    ['(3x + 1)<sup>4</sup>/(x<sup>2</sup> + 2)','2(3x + 1)<sup>3</sup>(3x<sup>2</sup> - x + 12)/(x<sup>2</sup> + 2)<sup>2</sup>',x=>(3*x+1)**4/(x*x+2),x=>2*(3*x+1)**3*(3*x*x-x+12)/(x*x+2)**2],
+    ['[(x<sup>2</sup> + 1)/(x - 2)]<sup>3</sup>','3(x<sup>2</sup> + 1)<sup>2</sup>(x<sup>2</sup> - 4x - 1)/(x - 2)<sup>4</sup>',x=>((x*x+1)/(x-2))**3,x=>3*(x*x+1)**2*(x*x-4*x-1)/(x-2)**4],
+    ['[(x<sup>2</sup> + 1)<sup>2</sup>(2x - 3)<sup>3</sup>]/(x + 1)','(x<sup>2</sup> + 1)(2x - 3)<sup>2</sup>(12x<sup>3</sup> + 5x<sup>2</sup> - 8x + 9)/(x + 1)<sup>2</sup>',x=>(x*x+1)**2*(2*x-3)**3/(x+1),x=>(x*x+1)*(2*x-3)**2*(12*x**3+5*x*x-8*x+9)/(x+1)**2]
+  ];
+  cases.forEach(([equation,answer,f,df],i)=>{
+    const q=questions[i];
+    assert.ok(q.prompt.includes(equation),`PDF ${i+1}: exact function`);
+    assert.ok(q.answer.includes(answer),`PDF ${i+1}: exact final derivative`);
+    for(const field of ['prompt','answer']) assert.equal((q[field].match(/\$/g)||[]).length%2,0,`PDF ${i+1}: balanced maths`);
+    for(const x of [.25,.8,1.25,1.8,2.6,3.4]){
+      const h=1e-5;
+      const numerical=(f(x+h)-f(x-h))/(2*h);
+      assert.ok(Math.abs(numerical-df(x))<1e-6*Math.max(1,Math.abs(df(x))),`PDF ${i+1}: derivative at ${x}`);
+    }
+  });
+  for(const [index,domain] of [[1,'x &ne; 0'],[2,'x &gt; 0'],[8,'x &ne; 3'],[11,'x &ne; 1/2'],[15,'x &ne; -2'],[18,'x &ne; 2'],[19,'x &ne; -1']]){
+    assert.ok(questions[index].prompt.includes(domain) && questions[index].answer.includes(domain),`PDF ${index+1}: domain preserved`);
+  }
+});
+
+test('all twenty worksheet help examples have correct derivatives',()=>{
+  const cases=[
+    [x=>2*x**3+x*x-4*x+5,x=>6*x*x+2*x-4],
+    [x=>3/x**2,x=>-6/x**3],
+    [x=>6*Math.sqrt(x)+x,x=>3/Math.sqrt(x)+1],
+    [x=>2*x+1,x=>2],
+    [x=>x*x,x=>2*x],
+    [x=>3*x*x-x,x=>6*x-1],
+    [x=>(x*x+1)*(x+2),x=>3*x*x+4*x+1],
+    [x=>(2*x+3)**3,x=>6*(2*x+3)**2],
+    [x=>x/(x+1),x=>1/(x+1)**2],
+    [x=>(x*x-1)*(x*x+2),x=>4*x**3+2*x],
+    [x=>Math.sqrt(3*x*x+1),x=>3*x/Math.sqrt(3*x*x+1)],
+    [x=>(x*x+1)/(x+1),x=>(x*x+2*x-1)/(x+1)**2],
+    [x=>(x*x+2)**2+(2*x+1)**3,x=>4*x*(x*x+2)+6*(2*x+1)**2],
+    [x=>x*x*(x+1)**3,x=>x*(x+1)**2*(5*x+2)],
+    [x=>(2*x+1)**-3,x=>-6/(2*x+1)**4],
+    [x=>(x+1)**2/(x+3),x=>(x+1)*(x+5)/(x+3)**2],
+    [x=>(x+1)**2*(x*x+2)**3,x=>2*(x+1)*(x*x+2)**2*(4*x*x+3*x+2)],
+    [x=>(x+1)**3/(x*x+1),x=>(x+1)**2*(x*x-2*x+3)/(x*x+1)**2],
+    [x=>((x+1)/(x-1))**2,x=>-4*(x+1)/(x-1)**3],
+    [x=>x*x*(x+2)**3/(x+1),x=>x*(x+2)**2*(4*x*x+7*x+4)/(x+1)**2]
+  ];
+  for(const [i,[f,df]] of cases.entries()){
+    for(const x of [.25,.7,1.3,2.2]){
+      const h=1e-5;
+      assert.ok(Math.abs((f(x+h)-f(x-h))/(2*h)-df(x))<1e-6*Math.max(1,Math.abs(df(x))),`PDF example ${i+1} at ${x}`);
+    }
+  }
+});
+
 test('combined-rule help examples have correct derivatives',()=>{
   const examples=[
     [x=>x*(2*x+1)**2,x=>(2*x+1)*(6*x+1)],
@@ -104,8 +194,8 @@ test('Leaving Cert drill controls select, reset, return and remain separate from
   assert.equal(elements.get('testCount').textContent,'15 questions');
   elements.get('differentiationButton').click();
   assert.equal(run('activeBank'),'differentiation');
-  assert.equal(run('QUESTIONS.length'),15);
-  assert.equal(elements.get('differentiationCount').textContent,'15 questions');
+  assert.equal(run('QUESTIONS.length'),35);
+  assert.equal(elements.get('differentiationCount').textContent,'35 questions');
   assert.equal(run('idx'),0);
   assert.equal(run('results.length'),0);
   assert.equal(run('locked'),false);
